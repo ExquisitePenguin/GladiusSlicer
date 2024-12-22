@@ -88,11 +88,25 @@ pub fn load_models(
                                 )
                             },
                         );
-                    Transform::new_translation_transform(
-                        (x + settings.print_x - (max_x + min_x)) / 2.,
-                        (y + settings.print_y - (max_y + min_y)) / 2.,
-                        -min_z,
-                    )
+                    match settings.print_dimensions {
+                        settings::BedDimensions::RectangularBed { print_x, print_y } => {
+                            // Moves print x and y to the middle of the rectagular bed
+                            Transform::new_translation_transform(
+                                (x + print_x - (max_x + min_x)) / 2.,
+                                (y + print_y - (max_y + min_y)) / 2.,
+                                -min_z,
+                            )
+                        },
+                        settings::BedDimensions::CircularBed { print_radius } => {
+                            // Finished during lunch break
+                            Transform::new_translation_transform(
+                                // Center of circular bed is 0
+                                0.0,
+                                0.0,
+                                -min_z,
+                            )
+                        },
+                    }
                 }
             };
 

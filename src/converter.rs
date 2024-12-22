@@ -1,5 +1,5 @@
 use crate::{Command, Settings};
-use evalexpr::{context_map, eval_float_with_context, DefaultNumericTypes, HashMapContext};
+use evalexpr::{context_map, eval_float_with_context, ContextWithMutableVariables, DefaultNumericTypes, HashMapContext};
 use gladius_shared::{error::SlicerErrors, settings::SettingsPrint, types::RetractionType};
 use std::io::{BufWriter, Write};
 
@@ -393,7 +393,7 @@ fn parse_macro(
 ) -> Result<String, SlicerErrors> {
     let layer_settings = settings.get_layer_settings(layer_count, current_z_height);
 
-    let context: HashMapContext<DefaultNumericTypes> = context_map! {
+    let mut context: HashMapContext<DefaultNumericTypes> = context_map! {
         "curr_extruder_temp" => float layer_settings.extruder_temp,
         "current_extruder_temp" => float layer_settings.extruder_temp,
         "bed_temp" => float layer_settings.bed_temp,
@@ -411,14 +411,26 @@ fn parse_macro(
         "bridge_speed" => float layer_settings.speed.bridge,
         "travel_speed" => float layer_settings.speed.travel,
         "support_speed" => float layer_settings.speed.support,
-        "print_size_x" => float settings.print_x,
-        "print_size_y" => float settings.print_y,
         "print_size_z" => float settings.print_z,
-
     }
     .map_err(|e| SlicerErrors::SettingMacroParseError {
         sub_error: e.to_string(),
     })?;
+
+    match settings.print_dimensions {
+        gladius_shared::settings::BedDimensions::RectangularBed { print_x, print_y } => {
+            context.set_value("print_size_x".to_string(), evalexpr::Value::Float(print_x))
+                .expect("These are valid identifiers");
+            context.set_value("print_size_y".to_string(), evalexpr::Value::Float(print_y))
+                .expect("These are valid identifiers");
+        },
+        gladius_shared::settings::BedDimensions::CircularBed { print_radius } => {
+            context.set_value("print_radius".to_string(), evalexpr::Value::Float(print_radius))
+                .expect("These are valid identifiers");
+            context.set_value("print_diameter".to_string(), evalexpr::Value::Float(print_radius * 2.0))
+                .expect("These are valid identifiers");
+        },
+    }
 
     eval_float_with_context(expression, &context)
         .map_err(|e| SlicerErrors::SettingMacroParseError {

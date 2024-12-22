@@ -202,9 +202,21 @@ impl Plotter for Slice {
             .iter()
             .circular_tuple_windows::<(_, _)>()
             .map(|(&_start, &end)| {
-                let bounded_endpoint = Coord {
-                    x: end.x.max(0.0).min(settings.print_x),
-                    y: end.y.max(0.0).min(settings.print_y),
+                let bounded_endpoint = match settings.print_dimensions {
+                    gladius_shared::settings::BedDimensions::RectangularBed { print_x, print_y } => {
+                        // Asures the skirt surrounding the print doesn't surpass the build area
+                        Coord {
+                            x: end.x.max(0.0).min(print_x),
+                            y: end.y.max(0.0).min(print_y),
+                        }
+                    },
+                    gladius_shared::settings::BedDimensions::CircularBed { print_radius } => {
+                        // clamp to be within print diameter
+                        Coord {
+                            x: end.x.clamp(-print_radius, print_radius),
+                            y: end.y.clamp(-print_radius, print_radius),
+                        }
+                    },
                 };
 
                 Move {
@@ -218,15 +230,29 @@ impl Plotter for Slice {
             })
             .collect();
 
-        let start_point = Coord {
-            x: offset_hull_multi.0[0].exterior()[0]
-                .x
-                .max(0.0)
-                .min(settings.print_x),
-            y: offset_hull_multi.0[0].exterior()[0]
-                .y
-                .max(0.0)
-                .min(settings.print_y),
+        let start_point = match settings.print_dimensions {
+            gladius_shared::settings::BedDimensions::RectangularBed { print_x, print_y } => {
+                // Asures the skirt surrounding the print doesn't surpass the build area
+                Coord {
+                    x: offset_hull_multi.0[0].exterior()[0]
+                        .x
+                        .max(0.0).min(print_x),
+                    y: offset_hull_multi.0[0].exterior()[0]
+                        .y
+                        .max(0.0).min(print_y),
+                }
+            },
+            gladius_shared::settings::BedDimensions::CircularBed { print_radius } => {
+                // clamp to be within print diameter
+                Coord {
+                    x: offset_hull_multi.0[0].exterior()[0]
+                        .x
+                        .clamp(-print_radius, print_radius),
+                    y: offset_hull_multi.0[0].exterior()[0]
+                        .y
+                        .clamp(-print_radius, print_radius),
+                }
+            },
         };
 
         self.fixed_chains.push(MoveChain {

@@ -15,8 +15,12 @@
 
   "infill_percentage": 0.2,
 
-  "print_x": 256,
-  "print_y": 256,
+  "print_dimensions": {
+    "RectangularBed": {
+      "print_x": 256,
+      "print_y": 256
+    }
+  },
   "print_z": 250,
 
   "brim_width": 1.2,

@@ -11,10 +11,9 @@ use gladius_proc_macros::Settings;
 #[cfg(feature = "json_schema_gen")]
 /// json schema gen
 use schemars::{schema_for, JsonSchema};
-use geo::{Contains, LinesIter, MultiPolygon};
+use geo::MultiPolygon;
 use geo_validity_check::Valid;
-use log::{info, trace};
-use nalgebra::Point2;
+use log::trace;
 use serde::{Deserialize, Serialize};
 use std::str::FromStr;
 
@@ -144,11 +143,8 @@ pub struct Settings {
     /// Number of solid bottom layers before infill
     pub bottom_layers: usize,
 
-    /// Size of the printer in x dimension in mm
-    pub print_x: f64,
-
-    /// Size of the printer in y dimension in mm
-    pub print_y: f64,
+    /// Size of the printer in all dimensions in mm
+    pub print_dimensions: BedDimensions,
 
     /// Size of the printer in z dimension in mm
     pub print_z: f64,
@@ -251,7 +247,7 @@ pub struct Settings {
 }
 
 impl Settings {
-    /// Genarate the json schema for `Settings`
+    /// Generate the json schema for `Settings`
     #[cfg(feature = "json_schema_gen")]
     pub fn gen_schema(path: &std::path::Path) -> Result<(), std::io::Error> {
         use std::{fs::File, io::Write};
@@ -321,9 +317,12 @@ impl Default for Settings {
 
             infill_percentage: 0.2,
 
-            print_x: 210.0,
-            print_y: 210.0,
+            print_dimensions: BedDimensions::RectangularBed {
+                print_x: 210.0,
+                print_y: 210.0,
+            },
             print_z: 210.0,
+
             inner_perimeters_first: true,
             minimum_retract_distance: 1.0,
             infill_perimeter_overlap_percentage: 0.25,
@@ -472,9 +471,38 @@ impl Settings {
 
     /// Validate settings and return any warnings and errors
     pub fn validate_settings(&self) -> SettingsValidationResult {
-        setting_less_than_or_equal_to_zero!(self, print_x);
-        setting_less_than_or_equal_to_zero!(self, print_y);
-        setting_less_than_or_equal_to_zero!(self, print_z);
+        match self.print_dimensions {
+            BedDimensions::RectangularBed { print_x, print_y} => {
+                if print_x <= 0.0 {
+                    return SettingsValidationResult::Error(SlicerErrors::SettingLessThanOrEqualToZero {
+                        setting: "print_x".to_string(),
+                        value: print_x,
+                    });
+                }
+                if print_y <= 0.0 {
+                    return SettingsValidationResult::Error(SlicerErrors::SettingLessThanOrEqualToZero {
+                        setting: "print_y".to_string(),
+                        value: print_y,
+                    });
+                }
+            },
+            BedDimensions::CircularBed { print_radius} => {
+                if print_radius <= 0.0 {
+                    return SettingsValidationResult::Error(SlicerErrors::SettingLessThanOrEqualToZero {
+                        setting: "print_radius".to_string(),
+                        value: print_radius,
+                    });
+                }
+            }
+        }
+
+        if self.print_z <= 0.0 {
+            return SettingsValidationResult::Error(SlicerErrors::SettingLessThanOrEqualToZero {
+                setting: "print_z".to_string(),
+                value: self.print_z,
+            });
+        }
+
         setting_less_than_or_equal_to_zero!(self, nozzle_diameter);
         setting_less_than_or_equal_to_zero!(self, layer_height);
         setting_less_than_or_equal_to_zero!(self, retract_speed);
@@ -535,7 +563,10 @@ impl Settings {
         let r = check_accelerations(
             &self.acceleration,
             &self.speed,
-            self.print_x.min(self.print_y),
+            match self.print_dimensions {
+                BedDimensions::RectangularBed { print_x, print_y, .. } => print_x.min(print_y),
+                BedDimensions::CircularBed { print_radius, .. } => print_radius * 2.0, // diameter
+            }
         );
         match r {
             SettingsValidationResult::NoIssue => {}
@@ -635,7 +666,10 @@ impl Settings {
             let r = check_accelerations(
                 &combined_acceleration,
                 &combined_speed,
-                self.print_x.min(self.print_y),
+                match self.print_dimensions {
+                    BedDimensions::RectangularBed { print_x, print_y, .. } => print_x.min(print_y),
+                    BedDimensions::CircularBed { print_radius, .. } => print_radius * 2.0, // diameter
+                }
             );
             match r {
                 SettingsValidationResult::NoIssue => {}
@@ -859,6 +893,34 @@ pub struct RetractionWipeSettings {
     pub distance: f64,
 }
 
+/// Contains the parameters to see if a vertex is within a boundaries
+#[cfg_attr(feature = "json_schema_gen", derive(JsonSchema))]
+#[derive(Settings,Serialize, Deserialize, Debug, Clone)]
+pub enum BedDimensions {
+    /// Contains the dimensions of a rectangular print bed
+    RectangularBed {
+        /// Size of the printer in x dimension in mm
+        print_x: f64,
+        /// Size of the printer in y dimension in mm
+        print_y: f64,
+    },
+
+    /// Contains the radius and height of a circular bed
+    CircularBed {
+        /// Radius of the print area
+        print_radius: f64,
+    }
+}
+
+impl Display for BedDimensions {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            BedDimensions::RectangularBed { print_x, print_y} => write!(f, "{{ x: {}, y: {} }}", print_x, print_y),
+            BedDimensions::CircularBed { print_radius} => write!(f, "{{ radius: {} }}", print_radius),
+        }
+    }
+}
+
 /// A partial complete settings file
 #[cfg_attr(feature = "json_schema_gen", derive(JsonSchema))]
 #[derive(Serialize, Deserialize, Debug, Clone)]
@@ -866,7 +928,7 @@ pub struct PartialSettingsFile {
     /// Other files to load
     pub other_files: Option<Vec<String>>,
 
-    ///The incompete settings that this files comtains that will be prioritized over the contents of the other files
+    ///The incomplete settings that this files contains that will be prioritized over the contents of the other files
     #[serde(flatten)]
     pub partial_settings: PartialSettings,
 }

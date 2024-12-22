@@ -1,5 +1,5 @@
 [files]
-extend-exclude = [".git", "settings", "test_3D_models"]
+extend-exclude = [".git", "settings", "test_3D_models", "*.gcode"]
 
 [default]
-locale = "en-us"
+locale = "en"

@@ -63,7 +63,7 @@ mod utils;
 struct Args {
     #[arg(
         required = true,
-        help = "The input files and there translations.\nBy default it takes a list of json strings that represents how the models should be loaded and translated.\nSee simple_input for an alterantive command. "
+        help = "The input files and there translations.\nBy default it takes a list of json strings that represents how the models should be loaded and translated.\nSee simple_input for an alternative command. "
     )]
     input: Vec<String>,
 
@@ -142,7 +142,7 @@ fn main() {
             input::load_settings_json(
                 args.settings_file_path
                     .as_deref()
-                    .expect("CLAP should handle requring a settings option to be Some"),
+                    .expect("CLAP should handle requiring a settings option to be Some"),
             ),
             &state_context,
         )

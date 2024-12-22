@@ -50,6 +50,6 @@ mod tests {
             }
         }
 
-        std::env::set_current_dir(current_path).expect("Must be run in correct enviroment");
+        std::env::set_current_dir(current_path).expect("Must be run in correct environment");
     }
 }

@@ -1,6 +1,6 @@
 use geo::{Contains, MultiPolygon, Point};
 use gladius_shared::error::SlicerErrors;
-use gladius_shared::settings::Settings;
+use gladius_shared::settings::{BedDimensions, Settings};
 use gladius_shared::types::{Command, IndexedTriangle, Vertex};
 use itertools::Itertools;
 
@@ -34,13 +34,30 @@ pub fn check_model_bounds(
             // Check if the point is in an excluded
             check_excluded(Point::new(v.x, v.y), &settings.bed_exclude_areas)?;
 
-            if v.x < total_offset
-                || v.y < total_offset
-                || v.z < -0.00001
-                || v.x > settings.print_x - total_offset
-                || v.y > settings.print_y - total_offset
-                || v.z > settings.print_z
-            {
+            // Checks if vertices are within bounds of the printer
+            match settings.print_dimensions {
+                BedDimensions::RectangularBed { print_x, print_y } => {
+                    if v.x < total_offset
+                        || v.y < total_offset
+                        || v.z < -0.00001
+                        || v.x > print_x - total_offset
+                        || v.y > print_y - total_offset
+                    {
+                        return Err(SlicerErrors::ModelOutsideBuildArea)
+                    };
+                },
+                BedDimensions::CircularBed { print_radius } => {
+                    if v.x < total_offset
+                        || v.y < total_offset
+                        || v.z < -0.00001
+                        || (v.x).powi(2) + (v.y).powi(2) > print_radius.powi(2) // Maybe minus 200 in the case the center of the circle doesn't work
+                    {
+                        return Err(SlicerErrors::ModelOutsideBuildArea)
+                    };
+                },
+            }
+
+            if v.z > settings.print_z {
                 Err(SlicerErrors::ModelOutsideBuildArea)
             } else {
                 Ok(())
@@ -54,14 +71,29 @@ pub fn check_moves_bounds(moves: &[Command], settings: &Settings) -> Result<(), 
         .iter()
         .map(|command| match command {
             Command::MoveTo { end, .. } | Command::MoveAndExtrude { end, .. } => {
-                if end.x < 0.0
-                    || end.x > settings.print_x
-                    || end.y < 0.0
-                    || end.y > settings.print_y
-                {
-                    Err(SlicerErrors::MovesOutsideBuildArea)
-                } else {
-                    Ok(())
+                match settings.print_dimensions {
+                    BedDimensions::RectangularBed { print_x, print_y } => {
+                        if end.x < 0.0
+                            || end.x > print_x
+                            || end.y < 0.0
+                            || end.y > print_y
+                        {
+                            Err(SlicerErrors::MovesOutsideBuildArea)
+                        } else {
+                            Ok(())
+                        }
+                    }
+                    BedDimensions::CircularBed { print_radius } => {
+                        if end.x > -print_radius
+                            || end.x < print_radius
+                            || end.y > -print_radius
+                            || end.y < print_radius
+                        {
+                            Err(SlicerErrors::MovesOutsideBuildArea)
+                        } else {
+                            Ok(())
+                        }
+                    },
                 }
             }
             Command::LayerChange { z, .. } => {

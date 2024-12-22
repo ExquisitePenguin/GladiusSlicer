@@ -229,15 +229,9 @@
       "description": "Partial Infill type",
       "$ref": "#/$defs/PartialInfillTypes"
     },
-    "print_x": {
-      "description": "Size of the printer in x dimension in mm",
-      "type": "number",
-      "format": "double"
-    },
-    "print_y": {
-      "description": "Size of the printer in y dimension in mm",
-      "type": "number",
-      "format": "double"
+    "print_dimensions": {
+      "description": "Size of the printer in all dimensions in mm",
+      "$ref": "#/$defs/BedDimensions"
     },
     "print_z": {
       "description": "Size of the printer in z dimension in mm",
@@ -327,8 +321,7 @@
     "number_of_perimeters",
     "top_layers",
     "bottom_layers",
-    "print_x",
-    "print_y",
+    "print_dimensions",
     "print_z",
     "minimum_retract_distance",
     "infill_perimeter_overlap_percentage",
@@ -361,6 +354,63 @@
     "has_aux_fan"
   ],
   "$defs": {
+    "BedDimensions": {
+      "description": "Contains the parameters to see if a vertex is within a boundaries",
+      "oneOf": [
+        {
+          "description": "Contains the dimensions of a rectangular print bed",
+          "type": "object",
+          "properties": {
+            "RectangularBed": {
+              "type": "object",
+              "properties": {
+                "print_x": {
+                  "description": "Size of the printer in x dimension in mm",
+                  "type": "number",
+                  "format": "double"
+                },
+                "print_y": {
+                  "description": "Size of the printer in y dimension in mm",
+                  "type": "number",
+                  "format": "double"
+                }
+              },
+              "required": [
+                "print_x",
+                "print_y"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "RectangularBed"
+          ]
+        },
+        {
+          "description": "Contains the radius and height of a circular bed",
+          "type": "object",
+          "properties": {
+            "CircularBed": {
+              "type": "object",
+              "properties": {
+                "print_radius": {
+                  "description": "Radius of the print area",
+                  "type": "number",
+                  "format": "double"
+                }
+              },
+              "required": [
+                "print_radius"
+              ]
+            }
+          },
+          "additionalProperties": false,
+          "required": [
+            "CircularBed"
+          ]
+        }
+      ]
+    },
     "Coord": {
       "type": "object",
       "properties": {
@@ -533,7 +583,8 @@
       "type": "array",
       "items": {
         "$ref": "#/$defs/Coord"
-      }
+      },
+      "minimum": 2
     },
     "MovementParameter": {
       "description": "A set of values for different movement types",
@@ -640,7 +691,7 @@
         "acceleration": {
           "anyOf": [
             {
-              "$ref": "#/$defs/MovementParameter"
+              "$ref": "#/$defs/PartialMovementParameter"
             },
             {
               "type": "null"
@@ -664,7 +715,7 @@
         "extrusion_width": {
           "anyOf": [
             {
-              "$ref": "#/$defs/MovementParameter"
+              "$ref": "#/$defs/PartialMovementParameter"
             },
             {
               "type": "null"
@@ -745,12 +796,88 @@
         "speed": {
           "anyOf": [
             {
-              "$ref": "#/$defs/MovementParameter"
+              "$ref": "#/$defs/PartialMovementParameter"
             },
             {
               "type": "null"
             }
           ]
+        }
+      }
+    },
+    "PartialMovementParameter": {
+      "description": "Partial Version of the struct #struct_name_ident",
+      "type": "object",
+      "properties": {
+        "bridge": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "exterior_inner_perimeter": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "exterior_surface_perimeter": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "infill": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "interior_inner_perimeter": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "interior_surface_perimeter": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "solid_infill": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "solid_top_infill": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "support": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
+        },
+        "travel": {
+          "type": [
+            "number",
+            "null"
+          ],
+          "format": "double"
         }
       }
     },
@@ -761,7 +888,8 @@
           "type": "array",
           "items": {
             "$ref": "#/$defs/Coord"
-          }
+          },
+          "minimum": 2
         },
         "interiors": {
           "type": "array",
